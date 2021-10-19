@@ -1,7 +1,7 @@
 ﻿using System;
-using Microsoft.ML;
-using System.IO;
 using System.Collections.Generic;
+using System.IO;
+using Microsoft.ML;
 
 namespace SpikeDetection.WinFormsTrainer
 {
@@ -26,7 +26,8 @@ namespace SpikeDetection.WinFormsTrainer
             mlContext = new MLContext();
 
             // Assign the Number of records in dataset file to constant variable.
-            const int size = 36;
+            const int size = 250;
+            CreateDataFile(DatasetPath, size);
 
             // Load the data into IDataView.
             // This dataset is used for detecting spikes or changes not for training.
@@ -36,10 +37,10 @@ namespace SpikeDetection.WinFormsTrainer
             ITransformer trainedSpikeModel = DetectSpike(size, dataView);
 
             // Detect persistent change in the pattern.
-            ITransformer trainedChangePointModel = DetectChangepoint(size, dataView);
+            //ITransformer trainedChangePointModel = DetectChangepoint(size, dataView);
             
             SaveModel(mlContext, trainedSpikeModel, SpikeModelPath, dataView);
-            SaveModel(mlContext, trainedChangePointModel, ChangePointModelPath, dataView);
+            //SaveModel(mlContext, trainedChangePointModel, ChangePointModelPath, dataView);
 
             Console.WriteLine("=============== End of process, hit any key to finish ===============");
             Console.ReadLine();
@@ -50,7 +51,7 @@ namespace SpikeDetection.WinFormsTrainer
             Console.WriteLine("===============Detect temporary changes in pattern===============");
 
             // STEP 1: Create Estimator.
-            var estimator = mlContext.Transforms.DetectIidSpike(outputColumnName: nameof(ProductSalesPrediction.Prediction), inputColumnName: nameof(ProductSalesData.numSales), confidence: 95, pvalueHistoryLength: size / 4);
+            var estimator = mlContext.Transforms.DetectIidSpike(outputColumnName: nameof(ProductSalesPrediction.Prediction), inputColumnName: nameof(ProductSalesData.numSales), confidence: 95D, pvalueHistoryLength: size / 4);
 
             // STEP 2:The Transformed Model.
             // In IID Spike detection, we don't need to do training, we just need to do transformation. 
@@ -138,6 +139,33 @@ namespace SpikeDetection.WinFormsTrainer
             IEnumerable<ProductSalesData> enumerableData = new List<ProductSalesData>();
             var dv = mlContext.Data.LoadFromEnumerable(enumerableData);
             return dv;
+        }
+
+        private static void CreateDataFile(string filePath, int fileSize)
+        {
+            if (File.ReadAllLines(filePath).Length != (fileSize + 1))
+            {
+                // generate a larger input file
+                var random = new Random();
+                var startDate = DateTime.Parse("2021-Jan-01");
+                var lines = new List<string>
+                {
+                    "Month,ProductSales",
+                };
+
+                for (var index = 0; index < fileSize; index++)
+                {
+                    var dateString = startDate.AddDays(index).ToString("yyyy-MMM-dd");
+                    var sales = 20_000D + random.NextDouble() * 10_000D; // random sales between 20-30K
+
+                    if (index == 51)
+                        sales = 60_000D;
+
+                    lines.Add($"{dateString},{sales:0.00}");
+                }
+
+                File.WriteAllLines(filePath, lines);
+            }
         }
     }
 }
